@@ -1,0 +1,8 @@
+iou_threshold: 0.3
+max_age: 30
+max_cosine_distance: 0.2
+min_hits: 3
+nn_budget: null
+reid_model:
+  path: D:\Project_ShadowHunt\models\reid\osnet_x0_25.msmt17.pt
+  type: osnet_x0_25

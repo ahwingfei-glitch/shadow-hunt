@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Models (large files)
+models/yolo/*.pt
+models/reid/*.pt
+models/llm/*
+
+# Data files
+data/raw/*.mp4
+data/raw/*.avi
+data/raw/*.mov
+data/processed/
+data/*.db
+
+# Output
+output/detections/
+output/tracks/
+output/reports/
+
+# Logs
+logs/*.log
+
+# Config (sensitive)
+config/secrets.yaml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+*.tmp
+*.bak
+
+# Test
+test_output/
+.pytest_cache/

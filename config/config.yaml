@@ -1,0 +1,79 @@
+# 猎影 (Shadow Hunt) v3.0 配置文件
+# 作者: 97工作室 - 贾维斯
+
+project:
+  name: "Shadow Hunt"
+  version: "3.0.0"
+  description: "AI 视频法证工作站"
+
+paths:
+  data: "D:/Project_ShadowHunt/data"
+  models: "D:/Project_ShadowHunt/models"
+  output: "D:/Project_ShadowHunt/output"
+  logs: "D:/Project_ShadowHunt/logs"
+
+detection:
+  model: "yolov8n.pt"
+  confidence: 0.5
+  iou_threshold: 0.45
+  classes: null  # null = all classes
+
+tracking:
+  tracker: "deepsort"
+  max_age: 30
+  min_hits: 3
+  iou_threshold: 0.3
+  max_cosine_distance: 0.2
+  nn_budget: null
+
+reid:
+  model_type: "osnet_x0_25"
+  model_path: "D:/Project_ShadowHunt/models/reid/osnet_x0_25.msmt17.pt"
+  embedding_dim: 128
+
+# 文本嵌入配置 (Ollama)
+text_embedding:
+  model: "nomic-embed-text"
+  dimension: 768  # nomic-embed-text 输出维度
+
+# 认知层配置
+# Grounding DINO 1.5 - 全语义检测
+# GitHub: IDEA-Research/Grounded-Segment-Anything
+cognition:
+  # Grounding DINO 配置
+  grounding_dino:
+    enabled: true
+    model: "IDEA-Research/grounding-dino-1.5-base"
+    device: "cpu"  # cpu / cuda
+    box_threshold: 0.35
+    text_threshold: 0.25
+    # 支持中英文指令，无需预训练标签
+    # 示例: "正在打电话的人", "正在撬锁的人", "正在奔跑的人"
+  
+  # Ollama 配置 (语义理解与推理)
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "qwen3.5:9b"
+    embedding_model: "nomic-embed-text"
+    timeout: 60
+
+celery:
+  broker: "redis://localhost:6379/0"
+  backend: "redis://localhost:6379/1"
+  task_priorities:
+    perception: 2    # 重载
+    cognition: 1     # 中载
+    report: 0        # 轻载
+
+openvino:
+  enabled: true
+  device: "CPU"
+
+faiss:
+  nlist: 100
+  nprobe: 10
+
+synopsis:
+  background_method: "mog2"
+  max_objects: 50
+  output_fps: 30

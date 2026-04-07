@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>猎影 Shadow Hunt</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Microsoft YaHei, sans-serif; background: #0a1628; color: #e0e6ed; }
+        /* 侧边栏样式 */
+        .sidebar { position: fixed; left: 0; top: 0; width: 240px; height: 100vh; background: #0d1b2a; display: flex; flex-direction: column; }
+        .logo { padding: 20px; font-size: 24px; font-weight: bold; color: #00d9ff; text-align: center; border-bottom: 1px solid #2a3a5a; }
+        .nav { flex: 1; padding: 16px 0; }
+        .nav-item { display: flex; align-items: center; padding: 12px 24px; color: #7a8ba3; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+        .nav-item:hover { background: rgba(22, 33, 62, 0.5); }
+        .nav-item.active { background: #16213e; color: #00d9ff; }
+        .nav-item span { margin-left: 12px; }
+        .user { padding: 16px 24px; border-top: 1px solid #2a3a5a; display: flex; align-items: center; }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #4facfe, #00f2fe); margin-right: 12px; }
+        .username { color: #e0e6ed; font-size: 14px; }
+        /* 主内容区 */
+        .main { margin-left: 240px; min-height: 100vh; background: #16213e; padding: 24px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 60px; }
+        .page-title h1 { font-size: 28px; color: #e0e6ed; margin-bottom: 8px; }
+        .page-title p { font-size: 16px; color: #7a8ba3; }
+        .btn-upload { padding: 12px 24px; background: rgba(255,255,255,0.1); border: 2px solid #2a3a5a; border-radius: 20px; color: #e0e6ed; cursor: pointer; font-size: 14px; transition: all 0.3s; }
+        .btn-upload:hover { background: rgba(79,172,254,0.2); border-color: #00d9ff; }
+        .search-section { max-width: 700px; margin: 0 auto; text-align: center; padding-top: 80px; }
+        .search-box { display: flex; gap: 12px; margin-bottom: 24px; }
+        .search-input { flex: 1; height: 48px; padding: 0 24px; font-size: 16px; border: 2px solid #2a3a5a; border-radius: 24px; background: rgba(255,255,255,0.05); color: #e0e6ed; outline: none; }
+        .search-input:focus { border-color: #00d9ff; }
+        .search-input::placeholder { color: #5a6a8a; }
+        .btn-search { padding: 0 28px; background: linear-gradient(135deg, #4facfe, #00f2fe); border: none; border-radius: 24px; color: #0a1628; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s; }
+        .btn-search:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(79,172,254,0.4); }
+        .tags { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+        .tag { padding: 8px 16px; background: rgba(255,255,255,0.05); border: 1px solid #2a3a5a; border-radius: 20px; font-size: 14px; cursor: pointer; transition: all 0.3s; }
+        .tag:hover { background: rgba(79,172,254,0.2); border-color: #4facfe; }
+        #result { margin-top: 40px; text-align: left; }
+        .result-item { background: rgba(0,0,0,0.3); padding: 16px; margin: 12px 0; border-radius: 8px; border-left: 3px solid #00d9ff; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="logo">猎影 Shadow Hunt</div>
+        <nav class="nav">
+            <div class="nav-item active"><span>🏠</span><span>首页</span></div>
+            <div class="nav-item"><span>📁</span><span>案件</span></div>
+            <div class="nav-item"><span>📊</span><span>分析</span></div>
+            <div class="nav-item"><span>⚙️</span><span>设置</span></div>
+        </nav>
+        <div class="user"><div class="avatar"></div><span class="username">admin</span></div>
+    </aside>
+    <main class="main">
+        <div class="header">
+            <div class="page-title"><h1>智能视频检索</h1><p>猎影 Shadow Hunt</p></div>
+            <input type="file" id="videoInput" accept="video/*" class="hidden" onchange="uploadVideo()">
+            <button class="btn-upload" onclick="document.getElementById('videoInput').click()">📹 上传视频</button>
+        </div>
+        <div class="search-section">
+            <div class="search-box">
+                <input type="text" class="search-input" id="searchInput" placeholder="描述你想找的动作或目标...">
+                <button class="btn-search" onclick="search()">🔍 搜索</button>
+            </div>
+            <div class="tags">
+                <span class="tag" onclick="quickSearch('奔跑的人')">奔跑的人</span>
+                <span class="tag" onclick="quickSearch('撬锁动作')">撬锁动作</span>
+                <span class="tag" onclick="quickSearch('徘徊')">徘徊</span>
+                <span class="tag" onclick="quickSearch('红衣')">红衣</span>
+            </div>
+            <div id="result"></div>
+        </div>
+    </main>
+    <script>
+        const API = 'http://127.0.0.1:8889';
+        const API_KEY = 'dev-key-change-in-production';
+        function quickSearch(q) { document.getElementById('searchInput').value = q; search(); }
+        async function search() {
+            const q = document.getElementById('searchInput').value.trim();
+            if (!q) return;
+            try {
+                const res = await fetch(`${API}/api/search`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY }, body: JSON.stringify({ query: q, top_k: 10 }) });
+                const data = await res.json();
+                if (res.ok) showResults(data); else alert('搜索失败: ' + data.detail);
+            } catch (e) { alert('搜索失败: ' + e.message); }
+        }
+        function showResults(results) {
+            if (!results || results.length === 0) { document.getElementById('result').innerHTML = '<p style="color:#7a8ba3">未找到匹配结果</p>'; return; }
+            let html = '<h3 style="color:#00d9ff;margin-bottom:12px">搜索结果 (' + results.length + ')</h3>';
+            results.forEach(r => { html += `<div class="result-item"><div style="font-size:16px;margin-bottom:6px">${r.tag_value}</div><div style="font-size:13px;color:#7a8ba3">Track #${r.track_id} | 置信度: ${(r.score*100).toFixed(1)}% | 时间: ${r.frame_start} - ${r.frame_end}</div></div>`; });
+            document.getElementById('result').innerHTML = html;
+        }
+        async function uploadVideo() {
+            const file = document.getElementById('videoInput').files[0];
+            if (!file) return;
+            const fd = new FormData(); fd.append('file', file); fd.append('case_id', '1');
+            try {
+                const res = await fetch(`${API}/api/videos/upload`, { method: 'POST', headers: { 'X-API-Key': API_KEY }, body: fd });
+                const data = await res.json();
+                if (res.ok) alert('上传成功: ' + data.filename); else alert('上传失败: ' + data.detail);
+            } catch (e) { alert('上传失败: ' + e.message); }
+        }
+        document.getElementById('searchInput').addEventListener('keypress', e => { if (e.key === 'Enter') search(); });
+    </script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!-- 侧边栏组件 -->
+<style>
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 240px;
+  height: 100vh;
+  background: #0d1b2a;
+  display: flex;
+  flex-direction: column;
+  font-family: Microsoft YaHei, sans-serif;
+}
+.logo {
+  padding: 20px;
+  font-size: 24px;
+  font-weight: bold;
+  color: #00d9ff;
+  text-align: center;
+  border-bottom: 1px solid #2a3a5a;
+}
+.nav { flex: 1; padding: 16px 0; }
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 24px;
+  color: #7a8ba3;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.nav-item:hover { background: rgba(22, 33, 62, 0.5); }
+.nav-item.active {
+  background: #16213e;
+  color: #00d9ff;
+}
+.nav-item span { margin-left: 12px; }
+.user {
+  padding: 16px 24px;
+  border-top: 1px solid #2a3a5a;
+  display: flex;
+  align-items: center;
+}
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+  margin-right: 12px;
+}
+.username { color: #e0e6ed; font-size: 14px; }
+</style>
+<aside class="sidebar">
+  <div class="logo">猎影 Shadow Hunt</div>
+  <nav class="nav">
+    <div class="nav-item active"><span>🏠</span><span>首页</span></div>
+    <div class="nav-item"><span>📁</span><span>案件</span></div>
+    <div class="nav-item"><span>📊</span><span>分析</span></div>
+    <div class="nav-item"><span>⚙️</span><span>设置</span></div>
+  </nav>
+  <div class="user">
+    <div class="avatar"></div>
+    <span class="username">admin</span>
+  </div>
+</aside>
