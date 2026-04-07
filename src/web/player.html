@@ -50,7 +50,15 @@
     <div class="main">
         <div class="left">
             <div class="header">📹 视频播放</div>
-            <div class="video-container"><div class="video-placeholder" id="placeholder">选择分析结果查看视频片段</div><video id="video" style="display:none" controls></video></div>
+            <div class="video-controls" style="padding: 12px 24px; background: #16213e; border-bottom: 1px solid #2a3a5a; display: flex; align-items: center; gap: 12px;">
+                <label for="videoSelect">选择视频:</label>
+                <select id="videoSelect" style="flex: 1; padding: 6px 12px; background: #0d1b2a; color: #e0e6ed; border: 1px solid #2a3a5a; border-radius: 4px;">
+                    <option value="">请选择视频...</option>
+                </select>
+                <input type="text" id="semanticPrompt" placeholder="输入语义提示词..." style="flex: 1; padding: 6px 12px; background: #0d1b2a; color: #e0e6ed; border: 1px solid #2a3a5a; border-radius: 4px;">
+                <button id="processBtn" style="padding: 6px 16px; background: #00d9ff; color: #0a1628; border: none; border-radius: 4px; cursor: pointer;">开始分析</button>
+            </div>
+            <div class="video-container"><div class="video-placeholder" id="placeholder">选择视频进行播放</div><video id="video" style="display:none" controls></video></div>
             <div class="timeline">
                 <span id="curTime">00:00</span>
                 <input type="range" id="seekBar" value="0" min="0" max="100" step="0.1">
@@ -69,31 +77,160 @@
         const curTime = document.getElementById('curTime'), durTime = document.getElementById('durTime');
         const results = document.getElementById('results'), count = document.getElementById('count');
         const placeholder = document.getElementById('placeholder');
-        let data = [];
+        const videoSelect = document.getElementById('videoSelect');
+        const semanticPrompt = document.getElementById('semanticPrompt');
+        const processBtn = document.getElementById('processBtn');
+        let data = [], videos = [];
         const fmt = s => `${Math.floor(s/60).toString().padStart(2,'0')}:${Math.floor(s%60).toString().padStart(2,'0')}`;
-        video.addEventListener('loadedmetadata', () => { seekBar.max = video.duration; durTime.textContent = fmt(video.duration); });
-        video.addEventListener('timeupdate', () => { if (!video.seeking) seekBar.value = video.currentTime; curTime.textContent = fmt(video.currentTime); });
-        seekBar.addEventListener('input', () => { video.currentTime = seekBar.value; });
-        function jumpTo(t) { video.currentTime = t; video.play(); }
+        
+        // 加载视频列表
+        async function loadVideoList() {
+            try {
+                const res = await fetch(`${API}/api/videos`, { 
+                    headers: { 'X-API-Key': API_KEY } 
+                });
+                videos = await res.json(); 
+                if (videos.results) videos = videos.results;
+                
+                // 填充下拉选择器
+                videoSelect.innerHTML = '<option value="">请选择视频...</option>';
+                videos.forEach(video => {
+                    const option = document.createElement('option');
+                    option.value = video.path || video.video_path || video.url;
+                    option.textContent = video.name || video.filename || video.path || video.video_path || '未知视频';
+                    videoSelect.appendChild(option);
+                });
+            } catch (e) {
+                console.error('加载视频列表失败:', e);
+                videoSelect.innerHTML = '<option value="">加载失败</option>';
+            }
+        }
+        
+        // 播放选中的视频
+        videoSelect.addEventListener('change', () => {
+            const selectedPath = videoSelect.value;
+            if (selectedPath) {
+                video.src = selectedPath;
+                video.style.display = 'block';
+                placeholder.style.display = 'none';
+                
+                // 如果有对应的分析结果，加载它们
+                loadAnalysisResults(selectedPath);
+            }
+        });
+        
+        // 开始分析按钮事件
+        processBtn.addEventListener('click', async () => {
+            const selectedPath = videoSelect.value;
+            const promptValue = semanticPrompt.value.trim();
+            
+            if (!selectedPath) {
+                alert('请先选择一个视频');
+                return;
+            }
+            
+            try {
+                processBtn.disabled = true;
+                processBtn.textContent = '分析中...';
+                
+                const res = await fetch(`${API}/api/videos/process`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY
+                    },
+                    body: JSON.stringify({
+                        video_path: selectedPath,
+                        case_id: 'default_case', // 可根据实际情况调整
+                        semantic_prompts: promptValue ? [promptValue] : []
+                    })
+                });
+                
+                if (res.ok) {
+                    alert('分析任务已提交，请稍后查看结果');
+                    // 可能需要轮询或等待分析完成后再加载结果
+                    setTimeout(() => loadAnalysisResults(selectedPath), 3000); // 3秒后尝试加载结果
+                } else {
+                    const errorData = await res.json();
+                    alert(`分析请求失败: ${errorData.message || '未知错误'}`);
+                }
+            } catch (e) {
+                console.error('提交分析任务失败:', e);
+                alert(`提交分析任务失败: ${e.message}`);
+            } finally {
+                processBtn.disabled = false;
+                processBtn.textContent = '开始分析';
+            }
+        });
+        
+        // 加载分析结果
+        async function loadAnalysisResults(videoPath) {
+            try {
+                // 目前先使用通用结果API，可以根据实际情况调整
+                const res = await fetch(`${API}/api/results`, { 
+                    headers: { 'X-API-Key': API_KEY } 
+                });
+                
+                if (res.ok) {
+                    data = await res.json(); 
+                    if (data.results) data = data.results;
+                    // 过滤出当前视频的结果
+                    data = data.filter(item => item.video_path === videoPath);
+                    renderResults(data);
+                } else {
+                    // 如果通用结果API不存在，显示空结果
+                    data = [];
+                    renderResults(data);
+                }
+            } catch (e) {
+                console.error('加载分析结果失败:', e);
+                results.innerHTML = `<div class="loading">加载结果失败: ${e.message}</div>`;
+            }
+        }
+        
+        video.addEventListener('loadedmetadata', () => { 
+            seekBar.max = video.duration; 
+            durTime.textContent = fmt(video.duration); 
+        });
+        video.addEventListener('timeupdate', () => { 
+            if (!video.seeking) seekBar.value = video.currentTime; 
+            curTime.textContent = fmt(video.currentTime); 
+        });
+        seekBar.addEventListener('input', () => { 
+            video.currentTime = seekBar.value; 
+        });
+        function jumpTo(t) { 
+            video.currentTime = t; 
+            video.play(); 
+        }
         function renderResults(items) {
             count.textContent = items.length;
-            if (!items.length) { results.innerHTML = '<div class="loading">暂无数据</div>'; return; }
+            if (!items.length) { 
+                results.innerHTML = '<div class="loading">暂无数据</div>'; 
+                return; 
+            }
             results.innerHTML = items.map((it, i) => `
                 <div class="result-item" onclick="jumpTo(${it.start})">
                     <div class="time">${fmt(it.start)} - ${fmt(it.end)}</div>
-                    <div class="action">${it.action || it.label || '未知动作'}</div>
-                    <div class="meta"><span>置信度: ${((it.confidence||0)*100).toFixed(1)}%</span><span>Track: ${it.track_id || '-'}</span></div>
+                    <div class="action">${it.action || it.label || it.description || '未知动作'}</div>
+                    <div class="meta">
+                        <span>置信度: ${((it.confidence||0)*100).toFixed(1)}%</span>
+                        <span>Track: ${it.track_id || '-'}</span>
+                        <span>类型: ${it.type || '行为'}</span>
+                    </div>
                 </div>`).join('');
         }
-        async function loadData() {
-            try {
-                const res = await fetch(`${API}/api/videos`, { headers: { 'X-API-Key': API_KEY } });
-                data = await res.json(); if (data.results) data = data.results; renderResults(data);
-            } catch (e) { results.innerHTML = `<div class="loading">加载失败: ${e.message}</div>`; }
-        }
+        
+        // 初始化页面
+        loadVideoList();
+        
+        // 保留原有的URL参数处理逻辑
         const params = new URLSearchParams(location.search);
-        if (params.get('video')) { video.src = params.get('video'); video.style.display = 'block'; placeholder.style.display = 'none'; }
-        loadData();
+        if (params.get('video')) { 
+            video.src = params.get('video'); 
+            video.style.display = 'block'; 
+            placeholder.style.display = 'none'; 
+        }
     </script>
 </body>
 </html>

@@ -50,11 +50,11 @@ tr:hover{background:rgba(79,172,254,0.1)}
   <table><thead><tr><th>案件编号</th><th>案件名称</th><th>状态</th><th>创建时间</th></tr></thead><tbody id="caseList"></tbody></table>
 </main>
 <script>
-const API='http://localhost:8889/api/cases';
-const API_KEY=localStorage.getItem('apiKey')||'';
+const API='http://127.0.0.1:8889/api/cases';
+const API_KEY='dev-key-change-in-production';
 async function loadCases(){try{const r=await fetch(API,{headers:{'X-API-Key':API_KEY}});const d=await r.json();render(d);}catch(e){console.error(e);document.getElementById('caseList').innerHTML='<tr><td colspan="4" style="text-align:center;color:#7a8ba3">加载失败</td></tr>';}}
 function render(cases){document.getElementById('caseList').innerHTML=cases.map(c=>`<tr><td>${c.id}</td><td>${c.name}</td><td><span class="status ${c.status}">${c.status==='open'?'进行中':'已结案'}</span></td><td>${c.createdAt||'-'}</td></tr>`).join('')||'<tr><td colspan="4" style="text-align:center;color:#7a8ba3">暂无案件</td></tr>';}
-function createCase(){alert('新建案件功能开发中');}
+function createCase(){const name=prompt('请输入案件名称：');if(name&&name.trim()!==''){fetch(`${API}?name=${encodeURIComponent(name)}`,{method:'POST',headers:{'X-API-Key':API_KEY,'Content-Type':'application/json'}}).then(response=>{if(response.ok){return response.json();}else{throw new Error('创建失败');}}).then(data=>{alert('案件创建成功！');loadCases();}).catch(error=>{alert('创建案件失败: '+error.message);});}}
 loadCases();
 </script>
 </body>

@@ -38,6 +38,25 @@
         #result { margin-top: 40px; text-align: left; }
         .result-item { background: rgba(0,0,0,0.3); padding: 16px; margin: 12px 0; border-radius: 8px; border-left: 3px solid #00d9ff; }
         .hidden { display: none; }
+        /* 进度条样式 */
+        .progress-container { width: 100%; background: #2a3a5a; border-radius: 12px; margin: 12px 0; overflow: hidden; }
+        .progress-bar { height: 8px; background: linear-gradient(135deg, #4facfe, #00f2fe); width: 0%; transition: width 0.3s; }
+        /* 视频列表样式 */
+        .videos-section { max-width: 800px; margin: 40px auto; padding: 20px; background: rgba(0,0,0,0.3); border-radius: 12px; }
+        .section-title { font-size: 20px; color: #00d9ff; margin-bottom: 20px; }
+        .video-card { background: rgba(255,255,255,0.05); border: 1px solid #2a3a5a; border-radius: 8px; padding: 16px; margin: 12px 0; display: flex; justify-content: space-between; align-items: center; }
+        .video-info { flex: 1; }
+        .video-name { font-size: 16px; font-weight: bold; color: #e0e6ed; margin-bottom: 4px; }
+        .video-meta { font-size: 14px; color: #7a8ba3; }
+        .video-status { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .status-uploaded { background: rgba(0,123,255,0.2); color: #4facfe; }
+        .status-processing { background: rgba(255,193,7,0.2); color: #ffc107; }
+        .status-completed { background: rgba(40,167,69,0.2); color: #28a745; }
+        .video-actions { display: flex; gap: 12px; }
+        .btn-process { padding: 8px 16px; background: linear-gradient(135deg, #4facfe, #00f2fe); border: none; border-radius: 20px; color: #0a1628; font-size: 14px; cursor: pointer; transition: all 0.3s; }
+        .btn-process:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(79,172,254,0.4); }
+        .btn-process:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .upload-status { color: #7a8ba3; font-size: 14px; margin-top: 8px; }
     </style>
 </head>
 <body>
@@ -70,11 +89,20 @@
             </div>
             <div id="result"></div>
         </div>
+        
+        <!-- 视频列表区域 -->
+        <div class="videos-section">
+            <h2 class="section-title">已上传视频</h2>
+            <div id="videoList">
+                <p style="color: #7a8ba3;">正在加载视频列表...</p>
+            </div>
+        </div>
     </main>
     <script>
         const API = 'http://127.0.0.1:8889';
         const API_KEY = 'dev-key-change-in-production';
         function quickSearch(q) { document.getElementById('searchInput').value = q; search(); }
+        
         async function search() {
             const q = document.getElementById('searchInput').value.trim();
             if (!q) return;
@@ -84,23 +112,236 @@
                 if (res.ok) showResults(data); else alert('搜索失败: ' + data.detail);
             } catch (e) { alert('搜索失败: ' + e.message); }
         }
+        
+        // 增强搜索结果，点击跳转到分析页面
         function showResults(results) {
-            if (!results || results.length === 0) { document.getElementById('result').innerHTML = '<p style="color:#7a8ba3">未找到匹配结果</p>'; return; }
+            if (!results || results.length === 0) { 
+                document.getElementById('result').innerHTML = '<p style="color:#7a8ba3">未找到匹配结果</p>'; 
+                return; 
+            }
             let html = '<h3 style="color:#00d9ff;margin-bottom:12px">搜索结果 (' + results.length + ')</h3>';
-            results.forEach(r => { html += `<div class="result-item"><div style="font-size:16px;margin-bottom:6px">${r.tag_value}</div><div style="font-size:13px;color:#7a8ba3">Track #${r.track_id} | 置信度: ${(r.score*100).toFixed(1)}% | 时间: ${r.frame_start} - ${r.frame_end}</div></div>`; });
+            results.forEach(r => { 
+                html += `<div class="result-item" onclick="goToPlayer('${r.video_id}', ${r.frame_start}, ${r.frame_end})" style="cursor: pointer;">
+                    <div style="font-size:16px;margin-bottom:6px">${r.tag_value}</div>
+                    <div style="font-size:13px;color:#7a8ba3">Track #${r.track_id} | 置信度: ${(r.score*100).toFixed(1)}% | 时间: ${r.frame_start} - ${r.frame_end}</div>
+                </div>`; 
+            });
             document.getElementById('result').innerHTML = html;
         }
+        
         async function uploadVideo() {
             const file = document.getElementById('videoInput').files[0];
             if (!file) return;
-            const fd = new FormData(); fd.append('file', file); fd.append('case_id', '1');
+            
+            // 创建进度显示元素
+            const progressContainer = document.createElement('div');
+            progressContainer.className = 'progress-container';
+            progressContainer.id = 'uploadProgressContainer';
+            
+            const progressBar = document.createElement('div');
+            progressBar.className = 'progress-bar';
+            progressBar.id = 'uploadProgressBar';
+            
+            progressContainer.appendChild(progressBar);
+            
+            const statusDiv = document.createElement('div');
+            statusDiv.id = 'uploadStatus';
+            statusDiv.className = 'upload-status';
+            statusDiv.textContent = '准备上传...';
+            
+            // 替换按钮位置的元素来显示进度
+            const uploadSection = document.querySelector('.header');
+            
+            // 添加进度显示
+            const progressWrapper = document.createElement('div');
+            progressWrapper.style.marginLeft = '20px';
+            progressWrapper.style.flex = '1';
+            progressWrapper.style.maxWidth = '300px';
+            progressWrapper.appendChild(progressContainer);
+            progressWrapper.appendChild(statusDiv);
+            
+            // 如果已经有进度显示，则替换它
+            const existingProgress = document.getElementById('uploadProgressContainer');
+            if (existingProgress) {
+                existingProgress.parentElement.parentElement.remove();
+            }
+            
+            uploadSection.appendChild(progressWrapper);
+            
+            const fd = new FormData(); 
+            fd.append('file', file); 
+            fd.append('case_id', '1');
+            
             try {
-                const res = await fetch(`${API}/api/videos/upload`, { method: 'POST', headers: { 'X-API-Key': API_KEY }, body: fd });
-                const data = await res.json();
-                if (res.ok) alert('上传成功: ' + data.filename); else alert('上传失败: ' + data.detail);
-            } catch (e) { alert('上传失败: ' + e.message); }
+                // 使用 XMLHttpRequest 来获取上传进度
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 100;
+                        document.getElementById('uploadProgressBar').style.width = percentComplete + '%';
+                        document.getElementById('uploadStatus').textContent = `上传中... ${Math.round(percentComplete)}%`;
+                    }
+                });
+                
+                xhr.addEventListener('load', async () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        const data = JSON.parse(xhr.responseText);
+                        document.getElementById('uploadStatus').textContent = '上传成功: ' + data.filename;
+                        // 重新加载视频列表
+                        setTimeout(() => {
+                            loadVideoList();
+                            // 移除进度显示
+                            progressWrapper.remove();
+                        }, 1000);
+                    } else {
+                        const error = JSON.parse(xhr.responseText);
+                        document.getElementById('uploadStatus').textContent = '上传失败: ' + error.detail;
+                        setTimeout(() => {
+                            progressWrapper.remove();
+                        }, 3000);
+                    }
+                });
+                
+                xhr.addEventListener('error', () => {
+                    document.getElementById('uploadStatus').textContent = '上传出错';
+                    setTimeout(() => {
+                        progressWrapper.remove();
+                    }, 3000);
+                });
+                
+                xhr.open('POST', `${API}/api/videos/upload`);
+                xhr.setRequestHeader('X-API-Key', API_KEY);
+                xhr.send(fd);
+            } catch (e) {
+                document.getElementById('uploadStatus').textContent = '上传失败: ' + e.message;
+                setTimeout(() => {
+                    progressWrapper.remove();
+                }, 3000);
+            }
         }
+        
+        // 加载视频列表
+        async function loadVideoList() {
+            try {
+                const res = await fetch(`${API}/api/videos`, { 
+                    method: 'GET', 
+                    headers: { 'X-API-Key': API_KEY } 
+                });
+                const videos = await res.json();
+                
+                if (res.ok) {
+                    displayVideos(videos);
+                } else {
+                    document.getElementById('videoList').innerHTML = `<p style="color: #ff6b6b;">加载视频列表失败: ${videos.detail}</p>`;
+                }
+            } catch (e) {
+                document.getElementById('videoList').innerHTML = `<p style="color: #ff6b6b;">加载视频列表失败: ${e.message}</p>`;
+            }
+        }
+        
+        // 显示视频列表
+        function displayVideos(videos) {
+            const videoListEl = document.getElementById('videoList');
+            
+            if (!videos || videos.length === 0) {
+                videoListEl.innerHTML = '<p style="color: #7a8ba3;">暂无上传的视频</p>';
+                return;
+            }
+            
+            let html = '';
+            videos.forEach(video => {
+                // 计算视频大小（MB）
+                const sizeInMB = (video.size / (1024 * 1024)).toFixed(2);
+                
+                // 根据状态确定状态类名和文本
+                let statusClass = '';
+                let statusText = '';
+                switch(video.status) {
+                    case 'uploaded':
+                        statusClass = 'status-uploaded';
+                        statusText = '已上传';
+                        break;
+                    case 'processing':
+                        statusClass = 'status-processing';
+                        statusText = '处理中';
+                        break;
+                    case 'completed':
+                        statusClass = 'status-completed';
+                        statusText = '已完成';
+                        break;
+                    default:
+                        statusClass = 'status-uploaded';
+                        statusText = video.status;
+                }
+                
+                html += `
+                <div class="video-card">
+                    <div class="video-info">
+                        <div class="video-name">${video.filename}</div>
+                        <div class="video-meta">大小: ${sizeInMB} MB | 状态: <span class="video-status ${statusClass}">${statusText}</span></div>
+                    </div>
+                    <div class="video-actions">
+                        <button class="btn-process" 
+                                onclick="processVideo('${video.id}', this)" 
+                                ${video.status !== 'uploaded' ? 'disabled' : ''}>
+                            处理
+                        </button>
+                    </div>
+                </div>`;
+            });
+            
+            videoListEl.innerHTML = html;
+        }
+        
+        // 处理视频
+        async function processVideo(videoId, buttonElement) {
+            // 更新按钮状态
+            const originalText = buttonElement.textContent;
+            buttonElement.textContent = '处理中...';
+            buttonElement.disabled = true;
+            
+            try {
+                const res = await fetch(`${API}/api/videos/process`, { 
+                    method: 'POST', 
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY 
+                    },
+                    body: JSON.stringify({ video_id: videoId })
+                });
+                
+                const data = await res.json();
+                
+                if (res.ok) {
+                    // 成功后更新视频列表
+                    buttonElement.textContent = '已完成';
+                    setTimeout(() => {
+                        loadVideoList();
+                    }, 1000);
+                } else {
+                    alert('处理失败: ' + data.detail);
+                    buttonElement.textContent = originalText;
+                    buttonElement.disabled = false;
+                }
+            } catch (e) {
+                alert('处理失败: ' + e.message);
+                buttonElement.textContent = originalText;
+                buttonElement.disabled = false;
+            }
+        }
+        
+        // 跳转到播放器页面
+        function goToPlayer(videoId, startTime, endTime) {
+            window.location.href = `/app/player?video=${videoId}&start=${startTime}&end=${endTime}`;
+        }
+        
         document.getElementById('searchInput').addEventListener('keypress', e => { if (e.key === 'Enter') search(); });
+        
+        // 页面加载完成后自动加载视频列表
+        document.addEventListener('DOMContentLoaded', function() {
+            loadVideoList();
+        });
     </script>
 </body>
 </html>
